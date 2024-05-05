@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.interpolate import Akima1DInterpolator as interp
+from scipy.signal import butter, sosfilt
+import matplotlib.pyplot as plt
 
 class CORALS:
     def __init__(self, fn="coralsLPDA_impResponse.txt", th=0.05):
@@ -15,7 +17,7 @@ class CORALS:
         self.filter = self._getReducedFilter(th)
 
 
-    def getWaveform(self, phase=None, numSamples=512, noise_bool = False, noise_RMS = 0):
+    def getWaveform(self, phase=None, numSamples=512, noise_bool = False, noise_RMS = 0, bp_filt = False, Follow_Signal = False):
         if phase == None:
             phase = np.random.random_sample()/self.sampleRate
         maxWaveformSamples = int(np.floor(self.impulseTimes[-1]*self.sampleRate))
@@ -25,16 +27,46 @@ class CORALS:
         interpWf = self.impulseInterp(interpTimes[:maxInterpSample])
 
         if noise_bool == True:
+            sos = butter(20, (0.1, 0.85), 'bandpass', fs = 3, output='sos')
             ## test_noise will hold 1000 realizations of random noise at a given RMS
             ## This is to then be passed into the matched filter to understand the filter response
             ## to the noise. This is to get the SNR value post filter
             test_noise = []
+            postButter_RMS = []
+            test_noise_len = 5000
             for ii in range(1000):
-                noise =np.random.normal(0, noise_RMS, maxInterpSample)
-                test_noise.append(noise)
+                noise =np.random.normal(0, noise_RMS, test_noise_len)
+                filt_Noise = sosfilt(sos, noise)
+                test_noise.append(filt_Noise)
+                std = np.std(filt_Noise)
+                postButter_RMS.append(std)
+            mean_RMS = np.mean(postButter_RMS)
+
+            if (Follow_Signal):
+                plt.plot(np.arange(test_noise_len), noise)
+                plt.title('Noise')
+                plt.show()
+                plt.hist(noise, bins = 20, range = (-0.03, 0.03))
+                plt.show()
+                plt.plot(np.arange(test_noise_len), filt_Noise)
+                plt.title('Bandpass Filtered Noise')
+                plt.show()
+                plt.hist(filt_Noise, bins = 20, range = (-0.03, 0.03))
+                plt.show()
+            #print(mean_RMS/noise_RMS)
+            #print("Input RMS:", noise_RMS)
+            #print("mean post bf:", mean_RMS)
+
             #print("woohoo im here")
-            noise = np.random.normal(0, noise_RMS, maxInterpSample)
-            interpNoisyWf = np.add(interpWf, noise)
+            if bp_filt == False:
+                noise = np.random.normal(0, noise_RMS, maxInterpSample)
+                interpNoisyWf = np.add(interpWf, noise)
+                interpNoisyWf_preBP = interpNoisyWf
+            else:
+                noise = np.random.normal(0, noise_RMS, maxInterpSample)
+                #noise = lfilter(b, a, noise)
+                interpNoisyWf_preBP = np.add(interpWf, noise)
+                interpNoisyWf = sosfilt(sos, interpNoisyWf_preBP)
         else:
             interpNoisyWf = interpWf
 
@@ -46,9 +78,13 @@ class CORALS:
             interpNoisyWf = np.pad(interpNoisyWf, [(0,(numSamples-maxInterpSample))],
                               mode='constant',
                               constant_values=0)
+            if (bp_filt):
+                interpNoisyWf_preBP = np.pad(interpNoisyWf_preBP, [(0,(numSamples-maxInterpSample))],
+                                mode='constant',
+                                constant_values=0)
             
         if (noise_bool):
-            return (interpTimes, interpWf, interpNoisyWf, test_noise)
+            return (interpTimes, interpWf, interpNoisyWf, test_noise, mean_RMS, interpNoisyWf_preBP)
         else:
             return (interpTimes, interpWf, interpNoisyWf)
 
@@ -65,19 +101,12 @@ class CORALS:
         ## THe filter makes values above threshold 1, below -1, all others 0
         last = min(grLast, ltLast) ## This will be the last index that gives a value above or below the threshold
 
-        lastSample = int(np.ceil(self.impulseTimes[last]*self.sampleRate)) # Need to figure out the number of samples we have
-                                                                           # Grab last time that is > th or < -th (measured in ns)
-                                                                           # multiply by sample rate (ns*numsamples/ns = numsamples)
-                                                                           # ceiling it to get the number of samples necessary to decribe the data
+        lastSample = int(np.ceil(self.impulseTimes[last]*self.sampleRate)) 
         wf = self.getWaveform(phase=0.0, numSamples=lastSample)
         gr = wf[1] > threshold
         lt = wf[1] < -1*threshold
-
+        #print(wf[1])
+        #print(lt)
+        #print(gr)
         filt = 1*gr - 1*lt        
-        print(filt)
-
-        print(len(wf[1]))
         return np.flip(filt[np.argmax(filt):])
-
-        
-        

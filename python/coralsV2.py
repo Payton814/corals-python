@@ -29,7 +29,7 @@ class CORALS:
             ## This is to then be passed into the matched filter to understand the filter response
             ## to the noise. This is to get the SNR value post filter
             test_noise = []
-            for ii in range(1000):
+            for ii in range(5000):
                 noise =np.random.normal(0, noise_RMS, maxInterpSample)
                 test_noise.append(noise)
             #print("woohoo im here")
@@ -65,19 +65,12 @@ class CORALS:
         ## THe filter makes values above threshold 1, below -1, all others 0
         last = min(grLast, ltLast) ## This will be the last index that gives a value above or below the threshold
 
-        lastSample = int(np.ceil(self.impulseTimes[last]*self.sampleRate)) # Need to figure out the number of samples we have
-                                                                           # Grab last time that is > th or < -th (measured in ns)
-                                                                           # multiply by sample rate (ns*numsamples/ns = numsamples)
-                                                                           # ceiling it to get the number of samples necessary to decribe the data
+        lastSample = int(np.ceil(self.impulseTimes[last]*self.sampleRate)) 
         wf = self.getWaveform(phase=0.0, numSamples=lastSample)
         gr = wf[1] > threshold
         lt = wf[1] < -1*threshold
-
+        #print(wf[1])
+        #print(lt)
+        #print(gr)
         filt = 1*gr - 1*lt        
-        print(filt)
-
-        print(len(wf[1]))
         return np.flip(filt[np.argmax(filt):])
-
-        
-        
