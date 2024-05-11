@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import lfilter
 
 if __name__ == "__main__":
-    th = 0.0425
+    th = 0.105
     c = CORALS(fn="coralsLPDA_impResponse.txt", th=th)
     #c = CORALS(fn="corals_halfscale_impulse_corr.txt", th=th)
     numSums = np.sum(np.abs(c.filter))
@@ -157,4 +157,4 @@ if __name__ == "__main__":
         df.insert(2, "std SNR out", run_std)
         df.insert(3, "fit slope", np.array(slope))
         df.insert(4, "Number of Sums", np.array(num_non0))
-        df.to_csv("SNR_improve_" + str(th) + "th_fullScale_V3.csv")
+        df.to_csv("SNR_improve_" + str(th) + "th_fullScale_V4_0.1to0.85BP.csv")
